@@ -1,0 +1,10 @@
+*.db
+logs
+malwaredomains.txt
+.idea
+.directory
+__pycache__
+.pid
+sopel.pid
+template
+default.cfg
