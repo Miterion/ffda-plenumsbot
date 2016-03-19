@@ -1,11 +1,15 @@
 import sopel.module
-from datetime import datetime,  timedelta
+from calendar import monthrange
+from datetime import date
 from urllib import request
 from py_etherpad import EtherpadLiteClient
 import re
 
 etherpad = None
 identifier = "---FREIFUNK DARMSTADT PLENUM---"
+helptext = ['Hilfe:', '.tops: Gibt eine Liste der aktuellen Tops aus\n', '.add Name Zeit Thema: Fügt ein neues Top hinzu\n',
+           '.pad: Link des aktuellen Pads',
+           '.help: Diese freundliche Hilfenachricht']
 
 @sopel.module.commands('pad')
 def padlink(bot, trigger):
@@ -15,6 +19,9 @@ def padlink(bot, trigger):
 def gettop(bot, trigger):
     bot.memory["tops"] = gettops(etherpad.getText("ffda-"+bot.memory["nextplenum"].strftime("%Y%m%d"))['text'])
     topics = bot.memory["tops"]
+    if len(topics) == 0:
+        bot.say('Bisher keine Tops')
+        return
     it = 0
     for key in topics:
         it += 1
@@ -31,22 +38,47 @@ def addtop(bot, trigger):
             tops = bot.memory["tops"]
             newtop = [command[1], " ".join(command[3:])]
             tops.append(newtop)
-        try: text = etherpad.getHtml(bot.memory["padid"])["html"]
+        try:
+            text = etherpad.getHtml(bot.memory["padid"])["html"]
         except:
             bot.say('Konnte Pad nicht aufrufen')
             return
-        text = text.replace('</ol>&lt;&#x2F;tops&gt;', '<li>[' + command[1] + '] '+command[2] +"' "  + newtop[1] + '</li></ol>&lt;&#x2F;tops&gt;')
+        if '<br>&lt;tops&gt;<br>&lt;&#x2F;tops&gt;' in text:
+            text = text.replace('<br>&lt;tops&gt;', '<br>&lt;tops&gt;<ol><li>[' + command[1] + '] ' + command[2] + "' " + newtop[1] + '</li></ol>')
+        else:
+            text = text.replace('</ol>&lt;&#x2F;tops&gt;', '<li>[' + command[1] + '] '+command[2] +"' "  + newtop[1] + '</li></ol>&lt;&#x2F;tops&gt;')
         try: etherpad.setHtml(bot.memory["padid"], text)
         except:
             pass
     else:
         bot.say("Falsche Argumente: Benutzung .add Inhaber Dauer Thema")
 
+@sopel.module.commands('help')
+def sendhelp(bot, trigger):
+    for help in helptext:
+        bot.say(help, trigger.nick)
+
+@sopel.module.require_owner()
+@sopel.module.commands('reload')
+def reload(bot, trigger):
+    update(bot)
+    bot.say('Bot updatet')
+
+@sopel.module.interval(6000)
+def update(bot):
+    nextdate = nextmeeting();
+    if bot.memory["nextplenum"] != nextdate:
+        bot.memory["nextplenum"] = nextdate
+        bot.memory["padid"] = "ffda-"+bot.memory["nextplenum"].strftime("%Y%m%d")
+        updatetemplate(bot, bot.config.plenum.template)
+        padsetup(bot)
+        bot.say('Neues Pad erstellt: ' + bot.memory["etherpad"]+"/p/"+bot.memory["padid"])
+
 def setup(bot):
     global etherpad
-    bot.memory["rythm"] = int(bot.config.plenum.rythm)
-    date = [int(i) for i in bot.config.plenum.startdate.split(".")[::-1]]
-    bot.memory["nextplenum"] = nextmeeting(datetime(*date), bot.memory["rythm"])
+#    bot.memory["rythm"] = int(bot.config.plenum.rythm)
+#    date = [int(i) for i in bot.config.plenum.startdate.split(".")[::-1]]
+    bot.memory["nextplenum"] = nextmeeting()
     bot.memory["etherpad"] = bot.config.plenum.etherpadurl
     bot.memory["apikey"] = bot.config.plenum.apikey
     bot.memory["padid"] = "ffda-"+bot.memory["nextplenum"].strftime("%Y%m%d")
@@ -105,16 +137,13 @@ def gettops(padtext):
         try: tops.append([re.findall('\[.*\]', match)[0].strip("[]"), re.split('\]', match)[1]])
         except:
             pass
-        print(tops)
     return tops
 
-def nextmeeting(last, rythm):
-    rythmdays = rythm * 7
-    delt = datetime.now() - last
-    if delt.days < rythmdays:
-        return last + timedelta(14)
-    else:
-        diff = delt.days % rythm * 7
-        if diff == 0:
-            return last
-        return datetime.now() + timedelta(rythmdays - diff)
+def nextmeeting(today = date.today()):
+    if today.day <= 7:
+        firstday = date(today.year, today.month, 1)
+        return date(today.year, today.month, firstday.day + 7 - firstday.weekday())
+    lastday = date(today.year, today.month, monthrange(today.year, today.month)[1])
+    if today > date(today.year, today.month, (lastday.day - (lastday.weekday() + 7))):
+        return nextmeeting(today.replace(month=today.month + 1, day = 1))
+    return date(today.year, today.month, (lastday.day - (lastday.weekday() + 7)))
