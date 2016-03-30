@@ -59,7 +59,7 @@ def sendhelp(bot, trigger):
         bot.say(help, trigger.nick)
 
 @sopel.module.require_owner()
-@sopel.module.commands('reload')
+@sopel.module.commands('rel')
 def reload(bot, trigger):
     update(bot)
     bot.say('Bot updatet')
