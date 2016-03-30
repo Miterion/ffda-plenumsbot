@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import sopel.module
 from calendar import monthrange
 from datetime import date
@@ -7,16 +9,15 @@ import re
 
 etherpad = None
 identifier = "---FREIFUNK DARMSTADT PLENUM---"
-helptext = ['Hilfe:', '.tops: Gibt eine Liste der aktuellen Tops aus\n', '.add Name Zeit Thema: Fügt ein neues Top hinzu\n',
-           '.pad: Link des aktuellen Pads',
-           '.help: Diese freundliche Hilfenachricht']
 
 @sopel.module.commands('pad')
 def padlink(bot, trigger):
+    '''Link des aktuellen Pads'''
     bot.say(bot.memory["etherpad"]+"/p/"+bot.memory["padid"])
 
 @sopel.module.commands('tops')
 def gettop(bot, trigger):
+    '''Gibt eine Liste der aktuellen Tops aus'''
     bot.memory["tops"] = gettops(etherpad.getText("ffda-"+bot.memory["nextplenum"].strftime("%Y%m%d"))['text'])
     topics = bot.memory["tops"]
     if len(topics) == 0:
@@ -27,8 +28,10 @@ def gettop(bot, trigger):
         it += 1
         bot.say(str(it)+". "+key[1]+" ["+key[0]+"]")
 
+@sopel.module.example('.add Inhaber Dauer Thema')
 @sopel.module.commands('add')
 def addtop(bot, trigger):
+    '''Name Zeit Thema: Fügt ein neues Top hinzu'''
     if len(trigger.args) > 1:
         command = trigger.args[1].split()
         if len(command) < 2:
@@ -52,11 +55,6 @@ def addtop(bot, trigger):
             pass
     else:
         bot.say("Falsche Argumente: Benutzung .add Inhaber Dauer Thema")
-
-@sopel.module.commands('help')
-def sendhelp(bot, trigger):
-    for help in helptext:
-        bot.say(help, trigger.nick)
 
 @sopel.module.require_owner()
 @sopel.module.commands('reload')
